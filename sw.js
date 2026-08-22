@@ -1,3 +1,6 @@
+// Incrementa questo valore (es. v2, v3...) a ogni modifica di index.html/manifest.json/icone:
+// è l'unico modo per far arrivare l'aggiornamento a chi ha già installato l'app, altrimenti
+// il service worker continua a servire la versione in cache indefinitamente.
 const CACHE_NAME = 'convocazioni-shell-v1';
 const APP_SHELL = [
   './',

@@ -38,7 +38,8 @@
     max-width: 480px;
     margin: 0 auto;
     padding: 16px;
-    padding-bottom: 40px;
+    padding-top: calc(16px + env(safe-area-inset-top));
+    padding-bottom: calc(40px + env(safe-area-inset-bottom));
   }
 
   .schermata { display: none; }
@@ -268,7 +269,7 @@
 
   .barra-contatore {
     position: sticky;
-    top: 0;
+    top: env(safe-area-inset-top);
     background: var(--grigio-chiaro);
     padding: 8px 0 12px 0;
     font-weight: 700;
