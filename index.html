@@ -1003,6 +1003,7 @@
         document.getElementById('messaggio-copiato-genitori').style.display = 'none';
         document.getElementById('messaggio-copiato-segreteria').style.display = 'none';
         mostraSchermata('schermata-testo');
+        mostraBloccoInvioAutomatico();
       })
       .catch(function (err) {
         mostraErrore('errore-convocazione', 'Errore: ' + err.message);
@@ -1043,6 +1044,116 @@
       msg.style.display = 'block';
       setTimeout(function () { msg.style.display = 'none'; }, 2500);
     }
+  }
+
+  // ============================================================
+  // INVIO AUTOMATICO WHATSAPP (solo amministratore)
+  // ============================================================
+  let gruppiDisponibili = [];
+
+  function mostraBloccoInvioAutomatico() {
+    if (tipoAccesso !== 'admin') return;
+    document.getElementById('blocco-invio-automatico').style.display = 'block';
+    document.getElementById('stato-invio-automatico').textContent = '';
+    chiamaApi('statoDestinatari', { pin: pinAttuale, categoria: partitaSelezionata.categoria })
+      .then(function (risultato) {
+        if (risultato.configurato) {
+          document.getElementById('invio-non-configurato').style.display = 'none';
+          document.getElementById('invio-pronto').style.display = 'block';
+        } else {
+          gruppiDisponibili = risultato.gruppi || [];
+          renderizzaSceltaGruppi();
+          document.getElementById('invio-pronto').style.display = 'none';
+          document.getElementById('invio-non-configurato').style.display = 'block';
+        }
+      })
+      .catch(function (err) {
+        document.getElementById('stato-invio-automatico').textContent = 'Errore: ' + err.message;
+      });
+  }
+
+  function renderizzaSceltaGruppi() {
+    const opzioni = gruppiDisponibili.map(function (g) {
+      return '<label class="opzione-gruppo"><input type="checkbox" value="' + escapeHtml(g.jid) + '"> ' + escapeHtml(g.nome) + '</label>';
+    }).join('') || '<p>Nessun gruppo trovato. Prova "Aggiorna elenco gruppi".</p>';
+    document.getElementById('scelta-gruppi-genitori').innerHTML = opzioni;
+    document.getElementById('scelta-gruppi-segreteria').innerHTML = opzioni;
+  }
+
+  function aggiornaElencoGruppiClient() {
+    document.getElementById('stato-invio-automatico').textContent = 'Aggiornamento elenco in corso...';
+    chiamaApi('aggiornaElencoGruppi', { pin: pinAttuale })
+      .then(function () {
+        setTimeout(function () {
+          chiamaApi('statoDestinatari', { pin: pinAttuale, categoria: partitaSelezionata.categoria })
+            .then(function (risultato) {
+              gruppiDisponibili = risultato.gruppi || [];
+              renderizzaSceltaGruppi();
+              document.getElementById('stato-invio-automatico').textContent = 'Elenco aggiornato.';
+            });
+        }, 8000);
+      })
+      .catch(function (err) {
+        document.getElementById('stato-invio-automatico').textContent = 'Errore: ' + err.message;
+      });
+  }
+
+  function salvaDestinatariClient() {
+    const genitori = Array.from(document.querySelectorAll('#scelta-gruppi-genitori input:checked')).map(function (cb) { return cb.value; });
+    const segreteria = Array.from(document.querySelectorAll('#scelta-gruppi-segreteria input:checked')).map(function (cb) { return cb.value; });
+    if (genitori.length === 0 || segreteria.length === 0) {
+      document.getElementById('stato-invio-automatico').textContent = 'Scegli almeno un destinatario per genitori e uno per segreteria.';
+      return;
+    }
+    document.getElementById('stato-invio-automatico').textContent = 'Salvataggio...';
+    chiamaApi('configuraDestinatari', { pin: pinAttuale, categoria: partitaSelezionata.categoria, convocazione: genitori, segreteria: segreteria })
+      .then(function () {
+        document.getElementById('invio-non-configurato').style.display = 'none';
+        document.getElementById('invio-pronto').style.display = 'block';
+        document.getElementById('stato-invio-automatico').textContent = '';
+        inviaAutomaticoClient();
+      })
+      .catch(function (err) {
+        document.getElementById('stato-invio-automatico').textContent = 'Errore: ' + err.message;
+      });
+  }
+
+  function inviaAutomaticoClient() {
+    document.getElementById('stato-invio-automatico').textContent = 'Invio in corso...';
+    chiamaApi('inviaWhatsAppAutomatico', {
+      pin: pinAttuale,
+      categoria: partitaSelezionata.categoria,
+      testoGenitori: document.getElementById('testoWhatsAppGenitori').value,
+      testoSegreteria: document.getElementById('testoWhatsAppSegreteria').value
+    })
+      .then(function () {
+        pollingStatoInvio(0);
+      })
+      .catch(function (err) {
+        document.getElementById('stato-invio-automatico').textContent = 'Errore: ' + err.message;
+      });
+  }
+
+  function pollingStatoInvio(tentativi) {
+    if (tentativi >= 10) {
+      document.getElementById('stato-invio-automatico').textContent = 'Nessuna conferma ricevuta, controlla manualmente.';
+      return;
+    }
+    setTimeout(function () {
+      chiamaApi('statoInvio', { pin: pinAttuale })
+        .then(function (risultato) {
+          if (risultato.stato === 'ok') {
+            document.getElementById('stato-invio-automatico').textContent = 'Inviato ✅';
+          } else if (risultato.stato === 'errore') {
+            document.getElementById('stato-invio-automatico').textContent = 'Errore ❌, controlla il gruppo o riprova.';
+          } else {
+            pollingStatoInvio(tentativi + 1);
+          }
+        })
+        .catch(function () {
+          pollingStatoInvio(tentativi + 1);
+        });
+    }, 3000);
   }
 
   // ============================================================
