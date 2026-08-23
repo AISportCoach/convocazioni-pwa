@@ -433,6 +433,7 @@
   <div id="schermata-home" class="schermata">
     <h1>Convocazioni</h1>
     <p class="sottotitolo" id="home-sottotitolo"></p>
+    <a class="link-testo" href="#" id="link-impostazioni" style="display:none;" onclick="apriImpostazioni(); return false;">⚙️ Impostazioni</a>
     <a class="link-testo" href="#" onclick="esci(); return false;">Esci</a>
     <button class="pulsante-primario" onclick="mostraNuovaPartita()">+ Nuova partita</button>
     <h2 style="margin-top:20px;">Partite</h2>
@@ -548,25 +549,20 @@
     </div>
 
     <div class="blocco-messaggio" id="blocco-invio-automatico" style="display:none;">
-      <div class="etichetta-messaggio">Invio automatico (amministratore)</div>
-
-      <div id="invio-non-configurato" style="display:none;">
-        <p class="sottotitolo">Nessun gruppo configurato per questa categoria.</p>
-        <button class="pulsante-secondario" onclick="aggiornaElencoGruppiClient()">Aggiorna elenco gruppi</button>
-        <p class="sottotitolo">Per genitori/ragazzi (uno o più)</p>
-        <div id="scelta-gruppi-genitori"></div>
-        <p class="sottotitolo">Per segreteria (uno o più)</p>
-        <div id="scelta-gruppi-segreteria"></div>
-        <button class="pulsante-primario" onclick="salvaDestinatariClient()">Salva e invia</button>
-      </div>
-
-      <div id="invio-pronto" style="display:none;">
-        <button class="pulsante-primario" onclick="inviaAutomaticoClient()">Invia automaticamente su WhatsApp</button>
-      </div>
-
+      <div class="etichetta-messaggio">Invio automatico</div>
+      <button class="pulsante-primario" onclick="inviaAutomaticoClient()">Invia automaticamente su WhatsApp</button>
       <p id="stato-invio-automatico" class="sottotitolo"></p>
     </div>
 
+    <button class="pulsante-secondario" onclick="mostraHome()">Torna all'elenco partite</button>
+  </div>
+
+  <!-- SCHERMATA 5: IMPOSTAZIONI (solo developer) -->
+  <div id="schermata-impostazioni" class="schermata">
+    <h2>Impostazioni</h2>
+    <p class="sottotitolo">Destinatari WhatsApp per categoria</p>
+    <button class="pulsante-secondario" onclick="aggiornaElencoGruppiClient()">Aggiorna elenco gruppi</button>
+    <div id="elenco-impostazioni-categorie"><div class="caricamento">Caricamento...</div></div>
     <button class="pulsante-secondario" onclick="mostraHome()">Torna all'elenco partite</button>
   </div>
 
@@ -608,7 +604,7 @@
     document.getElementById('errore-partita').style.display = 'none';
 
     const campoCategoria = document.getElementById('np-campo-categoria');
-    if (tipoAccesso === 'admin') {
+    if (tipoAccesso === 'admin' || tipoAccesso === 'developer') {
       campoCategoria.style.display = 'block';
       const select = document.getElementById('np-categoria');
       select.innerHTML = '';
@@ -665,7 +661,9 @@
           categorieDisponibili = accesso.categorie || [];
           localStorage.setItem(CHIAVE_PIN_SALVATO, pin);
           document.getElementById('home-sottotitolo').textContent =
+            tipoAccesso === 'developer' ? 'Developer - tutte le categorie' :
             tipoAccesso === 'admin' ? 'Amministratore - tutte le categorie' : categoriaAttuale;
+          document.getElementById('link-impostazioni').style.display = tipoAccesso === 'developer' ? 'block' : 'none';
           mostraHome();
           return true;
         }
@@ -735,11 +733,12 @@
       avversario: document.getElementById('np-avversario').value.trim(),
       casaTrasferta: casaTrasfertaNuovaPartita,
       ritrovo: document.getElementById('np-ritrovo').value.trim(),
-      categoria: tipoAccesso === 'admin' ? document.getElementById('np-categoria').value : categoriaAttuale
+      categoria: (tipoAccesso === 'admin' || tipoAccesso === 'developer') ? document.getElementById('np-categoria').value : categoriaAttuale
     };
 
-    if (!dati.data || !dati.ora || !dati.avversario || (tipoAccesso === 'admin' && !dati.categoria)) {
-      mostraErrore('errore-partita', 'Compila almeno data, ora, avversario' + (tipoAccesso === 'admin' ? ' e categoria.' : '.'));
+    const vedeTutteLeCategorie = tipoAccesso === 'admin' || tipoAccesso === 'developer';
+    if (!dati.data || !dati.ora || !dati.avversario || (vedeTutteLeCategorie && !dati.categoria)) {
+      mostraErrore('errore-partita', 'Compila almeno data, ora, avversario' + (vedeTutteLeCategorie ? ' e categoria.' : '.'));
       return;
     }
     nascondiErrore('errore-partita');
@@ -1047,74 +1046,17 @@
   }
 
   // ============================================================
-  // INVIO AUTOMATICO WHATSAPP (solo amministratore)
+  // INVIO AUTOMATICO WHATSAPP (amministratore o developer)
   // ============================================================
-  let gruppiDisponibili = [];
-
   function mostraBloccoInvioAutomatico() {
-    if (tipoAccesso !== 'admin') return;
-    document.getElementById('blocco-invio-automatico').style.display = 'block';
+    if (tipoAccesso !== 'admin' && tipoAccesso !== 'developer') return;
     document.getElementById('stato-invio-automatico').textContent = '';
     chiamaApi('statoDestinatari', { pin: pinAttuale, categoria: partitaSelezionata.categoria })
       .then(function (risultato) {
-        if (risultato.configurato) {
-          document.getElementById('invio-non-configurato').style.display = 'none';
-          document.getElementById('invio-pronto').style.display = 'block';
-        } else {
-          gruppiDisponibili = risultato.gruppi || [];
-          renderizzaSceltaGruppi();
-          document.getElementById('invio-pronto').style.display = 'none';
-          document.getElementById('invio-non-configurato').style.display = 'block';
-        }
+        document.getElementById('blocco-invio-automatico').style.display = risultato.configurato ? 'block' : 'none';
       })
-      .catch(function (err) {
-        document.getElementById('stato-invio-automatico').textContent = 'Errore: ' + err.message;
-      });
-  }
-
-  function renderizzaSceltaGruppi() {
-    const opzioni = gruppiDisponibili.map(function (g) {
-      return '<label class="opzione-gruppo"><input type="checkbox" value="' + escapeHtml(g.jid) + '"> ' + escapeHtml(g.nome) + '</label>';
-    }).join('') || '<p>Nessun gruppo trovato. Prova "Aggiorna elenco gruppi".</p>';
-    document.getElementById('scelta-gruppi-genitori').innerHTML = opzioni;
-    document.getElementById('scelta-gruppi-segreteria').innerHTML = opzioni;
-  }
-
-  function aggiornaElencoGruppiClient() {
-    document.getElementById('stato-invio-automatico').textContent = 'Aggiornamento elenco in corso...';
-    chiamaApi('aggiornaElencoGruppi', { pin: pinAttuale })
-      .then(function () {
-        setTimeout(function () {
-          chiamaApi('statoDestinatari', { pin: pinAttuale, categoria: partitaSelezionata.categoria })
-            .then(function (risultato) {
-              gruppiDisponibili = risultato.gruppi || [];
-              renderizzaSceltaGruppi();
-              document.getElementById('stato-invio-automatico').textContent = 'Elenco aggiornato.';
-            });
-        }, 8000);
-      })
-      .catch(function (err) {
-        document.getElementById('stato-invio-automatico').textContent = 'Errore: ' + err.message;
-      });
-  }
-
-  function salvaDestinatariClient() {
-    const genitori = Array.from(document.querySelectorAll('#scelta-gruppi-genitori input:checked')).map(function (cb) { return cb.value; });
-    const segreteria = Array.from(document.querySelectorAll('#scelta-gruppi-segreteria input:checked')).map(function (cb) { return cb.value; });
-    if (genitori.length === 0 || segreteria.length === 0) {
-      document.getElementById('stato-invio-automatico').textContent = 'Scegli almeno un destinatario per genitori e uno per segreteria.';
-      return;
-    }
-    document.getElementById('stato-invio-automatico').textContent = 'Salvataggio...';
-    chiamaApi('configuraDestinatari', { pin: pinAttuale, categoria: partitaSelezionata.categoria, convocazione: genitori, segreteria: segreteria })
-      .then(function () {
-        document.getElementById('invio-non-configurato').style.display = 'none';
-        document.getElementById('invio-pronto').style.display = 'block';
-        document.getElementById('stato-invio-automatico').textContent = '';
-        inviaAutomaticoClient();
-      })
-      .catch(function (err) {
-        document.getElementById('stato-invio-automatico').textContent = 'Errore: ' + err.message;
+      .catch(function () {
+        document.getElementById('blocco-invio-automatico').style.display = 'none';
       });
   }
 
@@ -1154,6 +1096,107 @@
           pollingStatoInvio(tentativi + 1, riferimento);
         });
     }, 3000);
+  }
+
+  // ============================================================
+  // IMPOSTAZIONI (solo developer): configurazione destinatari per categoria
+  // ============================================================
+  let statoCategorieImpostazioni = [];
+  let gruppiDisponibiliImpostazioni = [];
+
+  function apriImpostazioni() {
+    mostraSchermata('schermata-impostazioni');
+    caricaImpostazioni();
+  }
+
+  function caricaImpostazioni() {
+    document.getElementById('elenco-impostazioni-categorie').innerHTML = '<div class="caricamento">Caricamento...</div>';
+    chiamaApi('statoDestinatariTutti', { pin: pinAttuale })
+      .then(function (risultato) {
+        statoCategorieImpostazioni = risultato.categorie;
+        gruppiDisponibiliImpostazioni = risultato.gruppi || [];
+        renderizzaImpostazioni();
+      })
+      .catch(function (err) {
+        document.getElementById('elenco-impostazioni-categorie').innerHTML = '<p class="messaggio-errore" style="display:block;">Errore: ' + escapeHtml(err.message) + '</p>';
+      });
+  }
+
+  function renderizzaImpostazioni() {
+    const contenitore = document.getElementById('elenco-impostazioni-categorie');
+    contenitore.innerHTML = statoCategorieImpostazioni.map(function (c, indice) {
+      const stato = c.configurato ? 'Configurata ✅' : 'Non configurata';
+      const pulsanteResetta = c.configurato
+        ? '<button class="pulsante-secondario" onclick="resettaDestinatariClient(' + indice + ')">Resetta</button>'
+        : '';
+      return '<div class="blocco-messaggio">' +
+        '<div class="etichetta-messaggio">' + escapeHtml(c.categoria) + '</div>' +
+        '<p class="sottotitolo">' + stato + '</p>' +
+        '<button class="pulsante-secondario" onclick="mostraFormCategoria(' + indice + ')">' + (c.configurato ? 'Riconfigura' : 'Configura') + '</button>' +
+        pulsanteResetta +
+        '<div id="form-categoria-' + indice + '" style="display:none; margin-top:10px;"></div>' +
+        '</div>';
+    }).join('');
+  }
+
+  function mostraFormCategoria(indice) {
+    const c = statoCategorieImpostazioni[indice];
+    const opzioniHtml = function (selezionati) {
+      return gruppiDisponibiliImpostazioni.map(function (g) {
+        const selezionato = selezionati.indexOf(g.jid) !== -1 ? ' checked' : '';
+        return '<label class="opzione-gruppo"><input type="checkbox" value="' + escapeHtml(g.jid) + '"' + selezionato + '> ' + escapeHtml(g.nome) + '</label>';
+      }).join('') || '<p>Nessun gruppo trovato. Prova "Aggiorna elenco gruppi".</p>';
+    };
+    const div = document.getElementById('form-categoria-' + indice);
+    div.innerHTML =
+      '<p class="sottotitolo">Per genitori/ragazzi (uno o più)</p>' +
+      '<div id="scelta-genitori-' + indice + '">' + opzioniHtml(c.convocazione) + '</div>' +
+      '<p class="sottotitolo">Per segreteria (uno o più)</p>' +
+      '<div id="scelta-segreteria-' + indice + '">' + opzioniHtml(c.segreteria) + '</div>' +
+      '<button class="pulsante-primario" onclick="salvaDestinatariCategoria(' + indice + ')">Salva</button>' +
+      '<p id="stato-form-categoria-' + indice + '" class="sottotitolo"></p>';
+    div.style.display = 'block';
+  }
+
+  function salvaDestinatariCategoria(indice) {
+    const c = statoCategorieImpostazioni[indice];
+    const genitori = Array.from(document.querySelectorAll('#scelta-genitori-' + indice + ' input:checked')).map(function (cb) { return cb.value; });
+    const segreteria = Array.from(document.querySelectorAll('#scelta-segreteria-' + indice + ' input:checked')).map(function (cb) { return cb.value; });
+    const statoEl = document.getElementById('stato-form-categoria-' + indice);
+    if (genitori.length === 0 || segreteria.length === 0) {
+      statoEl.textContent = 'Scegli almeno un destinatario per genitori e uno per segreteria.';
+      return;
+    }
+    statoEl.textContent = 'Salvataggio...';
+    chiamaApi('configuraDestinatari', { pin: pinAttuale, categoria: c.categoria, convocazione: genitori, segreteria: segreteria })
+      .then(function () {
+        caricaImpostazioni();
+      })
+      .catch(function (err) {
+        statoEl.textContent = 'Errore: ' + err.message;
+      });
+  }
+
+  function resettaDestinatariClient(indice) {
+    const c = statoCategorieImpostazioni[indice];
+    if (!window.confirm('Resettare i destinatari di "' + c.categoria + '"? Andranno riconfigurati prima del prossimo invio automatico.')) return;
+    chiamaApi('resettaDestinatari', { pin: pinAttuale, categoria: c.categoria })
+      .then(function () {
+        caricaImpostazioni();
+      })
+      .catch(function (err) {
+        window.alert('Errore: ' + err.message);
+      });
+  }
+
+  function aggiornaElencoGruppiClient() {
+    chiamaApi('aggiornaElencoGruppi', { pin: pinAttuale })
+      .then(function () {
+        setTimeout(function () { caricaImpostazioni(); }, 8000);
+      })
+      .catch(function (err) {
+        window.alert('Errore: ' + err.message);
+      });
   }
 
   // ============================================================
