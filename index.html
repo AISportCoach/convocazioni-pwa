@@ -290,6 +290,16 @@
     font-weight: 700;
   }
 
+  .opzione-gruppo {
+    display: block;
+    padding: 8px 0;
+    font-size: 15px;
+  }
+
+  .opzione-gruppo input {
+    margin-right: 8px;
+  }
+
   .link-testo {
     display: block;
     text-align: center;
@@ -535,6 +545,26 @@
           Copia
         </button>
       </div>
+    </div>
+
+    <div class="blocco-messaggio" id="blocco-invio-automatico" style="display:none;">
+      <div class="etichetta-messaggio">Invio automatico (amministratore)</div>
+
+      <div id="invio-non-configurato" style="display:none;">
+        <p class="sottotitolo">Nessun gruppo configurato per questa categoria.</p>
+        <button class="pulsante-secondario" onclick="aggiornaElencoGruppiClient()">Aggiorna elenco gruppi</button>
+        <p class="sottotitolo">Per genitori/ragazzi (uno o più)</p>
+        <div id="scelta-gruppi-genitori"></div>
+        <p class="sottotitolo">Per segreteria (uno o più)</p>
+        <div id="scelta-gruppi-segreteria"></div>
+        <button class="pulsante-primario" onclick="salvaDestinatariClient()">Salva e invia</button>
+      </div>
+
+      <div id="invio-pronto" style="display:none;">
+        <button class="pulsante-primario" onclick="inviaAutomaticoClient()">Invia automaticamente su WhatsApp</button>
+      </div>
+
+      <p id="stato-invio-automatico" class="sottotitolo"></p>
     </div>
 
     <button class="pulsante-secondario" onclick="mostraHome()">Torna all'elenco partite</button>
