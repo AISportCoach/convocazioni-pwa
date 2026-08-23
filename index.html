@@ -1144,11 +1144,15 @@
     const opzioniHtml = function (selezionati) {
       return gruppiDisponibiliImpostazioni.map(function (g) {
         const selezionato = selezionati.indexOf(g.jid) !== -1 ? ' checked' : '';
-        return '<label class="opzione-gruppo"><input type="checkbox" value="' + escapeHtml(g.jid) + '"' + selezionato + '> ' + escapeHtml(g.nome) + '</label>';
+        return '<label class="opzione-gruppo" data-nome-gruppo="' + escapeHtml(g.nome.toLowerCase()) + '">' +
+          '<input type="checkbox" value="' + escapeHtml(g.jid) + '"' + selezionato + '> ' + escapeHtml(g.nome) + '</label>';
       }).join('') || '<p>Nessun gruppo trovato. Prova "Aggiorna elenco gruppi".</p>';
     };
     const div = document.getElementById('form-categoria-' + indice);
     div.innerHTML =
+      '<div class="campo">' +
+      '<input type="text" placeholder="Cerca gruppo..." oninput="filtraGruppiImpostazioni(' + indice + ', this.value)">' +
+      '</div>' +
       '<p class="sottotitolo">Per genitori/ragazzi (uno o più)</p>' +
       '<div id="scelta-genitori-' + indice + '">' + opzioniHtml(c.convocazione) + '</div>' +
       '<p class="sottotitolo">Per segreteria (uno o più)</p>' +
@@ -1156,6 +1160,16 @@
       '<button class="pulsante-primario" onclick="salvaDestinatariCategoria(' + indice + ')">Salva</button>' +
       '<p id="stato-form-categoria-' + indice + '" class="sottotitolo"></p>';
     div.style.display = 'block';
+  }
+
+  /** Filtra (mostra/nasconde) le opzioni gruppo per nome, senza deselezionare le checkbox nascoste. */
+  function filtraGruppiImpostazioni(indice, testoRicerca) {
+    const filtro = testoRicerca.trim().toLowerCase();
+    const div = document.getElementById('form-categoria-' + indice);
+    div.querySelectorAll('.opzione-gruppo').forEach(function (etichetta) {
+      const nome = etichetta.getAttribute('data-nome-gruppo') || '';
+      etichetta.style.display = (filtro === '' || nome.indexOf(filtro) !== -1) ? 'block' : 'none';
+    });
   }
 
   function salvaDestinatariCategoria(indice) {
