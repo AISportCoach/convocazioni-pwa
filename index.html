@@ -300,6 +300,14 @@
     margin-right: 8px;
   }
 
+  .campo-numero-manuale {
+    margin-bottom: 16px;
+  }
+
+  .campo-numero-manuale input {
+    margin-bottom: 8px;
+  }
+
   .link-testo {
     display: block;
     text-align: center;
@@ -1142,11 +1150,28 @@
   function mostraFormCategoria(indice) {
     const c = statoCategorieImpostazioni[indice];
     const opzioniHtml = function (selezionati) {
-      return gruppiDisponibiliImpostazioni.map(function (g) {
+      const jidNoti = gruppiDisponibiliImpostazioni.map(function (g) { return g.jid; });
+      // Numeri inseriti a mano in precedenza (già salvati per questa categoria) che non
+      // compaiono nell'elenco gruppi/contatti automatico: li mostro comunque, già spuntati,
+      // altrimenti sparirebbero dalla vista e andrebbero persi al prossimo salvataggio.
+      const extra = selezionati.filter(function (jid) { return jidNoti.indexOf(jid) === -1; });
+      const daGruppi = gruppiDisponibiliImpostazioni.map(function (g) {
         const selezionato = selezionati.indexOf(g.jid) !== -1 ? ' checked' : '';
         return '<label class="opzione-gruppo" data-nome-gruppo="' + escapeHtml(g.nome.toLowerCase()) + '">' +
           '<input type="checkbox" value="' + escapeHtml(g.jid) + '"' + selezionato + '> ' + escapeHtml(g.nome) + '</label>';
-      }).join('') || '<p>Nessun gruppo trovato. Prova "Aggiorna elenco gruppi".</p>';
+      }).join('');
+      const daExtra = extra.map(function (jid) {
+        const numero = jid.split('@')[0];
+        return '<label class="opzione-gruppo" data-nome-gruppo="' + numero + '">' +
+          '<input type="checkbox" value="' + escapeHtml(jid) + '" checked> ' + numero + ' (numero inserito a mano)</label>';
+      }).join('');
+      return (daGruppi + daExtra) || '<p>Nessun gruppo trovato. Prova "Aggiorna elenco gruppi".</p>';
+    };
+    const campoNumeroManuale = function (colonna) {
+      return '<div class="campo-numero-manuale">' +
+        '<input type="tel" id="numero-manuale-' + colonna + '-' + indice + '" placeholder="Numero (es. 393401234567)">' +
+        '<button class="pulsante-secondario" onclick="aggiungiContattoManuale(' + indice + ', \'' + colonna + '\')">+ Aggiungi numero</button>' +
+        '</div>';
     };
     const div = document.getElementById('form-categoria-' + indice);
     div.innerHTML =
@@ -1155,11 +1180,37 @@
       '</div>' +
       '<p class="sottotitolo">Per genitori/ragazzi (uno o più)</p>' +
       '<div id="scelta-genitori-' + indice + '">' + opzioniHtml(c.convocazione) + '</div>' +
+      campoNumeroManuale('genitori') +
       '<p class="sottotitolo">Per segreteria (uno o più)</p>' +
       '<div id="scelta-segreteria-' + indice + '">' + opzioniHtml(c.segreteria) + '</div>' +
+      campoNumeroManuale('segreteria') +
       '<button class="pulsante-primario" onclick="salvaDestinatariCategoria(' + indice + ')">Salva</button>' +
       '<p id="stato-form-categoria-' + indice + '" class="sottotitolo"></p>';
     div.style.display = 'block';
+  }
+
+  /** Aggiunge un numero inserito a mano come opzione già spuntata nella colonna scelta
+   * (genitori o segreteria), per contatti singoli non presenti nell'elenco automatico
+   * (che oggi contiene solo gruppi, vedi README del bot). */
+  function aggiungiContattoManuale(indice, colonna) {
+    const input = document.getElementById('numero-manuale-' + colonna + '-' + indice);
+    const numero = input.value.replace(/[^0-9]/g, '');
+    if (numero.length < 8) {
+      window.alert('Inserisci un numero di telefono valido, con prefisso internazionale e senza spazi (es. 393401234567).');
+      return;
+    }
+    const jid = numero + '@s.whatsapp.net';
+    const contenitore = document.getElementById('scelta-' + colonna + '-' + indice);
+    if (contenitore.querySelector('input[value="' + jid + '"]')) {
+      input.value = '';
+      return;
+    }
+    const etichetta = document.createElement('label');
+    etichetta.className = 'opzione-gruppo';
+    etichetta.setAttribute('data-nome-gruppo', numero);
+    etichetta.innerHTML = '<input type="checkbox" value="' + jid + '" checked> ' + numero + ' (numero inserito a mano)';
+    contenitore.appendChild(etichetta);
+    input.value = '';
   }
 
   /** Filtra (mostra/nasconde) le opzioni gruppo per nome, senza deselezionare le checkbox nascoste. */
