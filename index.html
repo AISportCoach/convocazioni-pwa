@@ -1195,8 +1195,15 @@
   function aggiungiContattoManuale(indice, colonna) {
     const input = document.getElementById('numero-manuale-' + colonna + '-' + indice);
     const numero = input.value.replace(/[^0-9]/g, '');
-    if (numero.length < 8) {
-      window.alert('Inserisci un numero di telefono valido, con prefisso internazionale e senza spazi (es. 393401234567).');
+    // Un numero internazionale completo (prefisso + numero) ha in pratica sempre almeno
+    // 10 cifre: soglia scelta per intercettare cifre perse per errore di digitazione,
+    // capitato in pratica su tastiera del telefono (es. "398644773", 9 cifre, invece di
+    // "393938644773") — un invio a quel JID non dà errore ma non arriva mai a destinazione.
+    if (numero.length < 10 || numero.length > 15) {
+      window.alert('Il numero "' + numero + '" (' + numero.length + ' cifre) non sembra completo. Usa il formato internazionale senza spazi né "+" (es. 393401234567).');
+      return;
+    }
+    if (!window.confirm('Aggiungere questo numero: +' + numero + ' ?\nControllalo con attenzione: se sbagliato il messaggio non arriverà, senza errori visibili.')) {
       return;
     }
     const jid = numero + '@s.whatsapp.net';
