@@ -1126,32 +1126,32 @@
       testoGenitori: document.getElementById('testoWhatsAppGenitori').value,
       testoSegreteria: document.getElementById('testoWhatsAppSegreteria').value
     })
-      .then(function () {
-        pollingStatoInvio(0);
+      .then(function (risultato) {
+        pollingStatoInvio(0, risultato.riferimento);
       })
       .catch(function (err) {
         document.getElementById('stato-invio-automatico').textContent = 'Errore: ' + err.message;
       });
   }
 
-  function pollingStatoInvio(tentativi) {
+  function pollingStatoInvio(tentativi, riferimento) {
     if (tentativi >= 10) {
       document.getElementById('stato-invio-automatico').textContent = 'Nessuna conferma ricevuta, controlla manualmente.';
       return;
     }
     setTimeout(function () {
-      chiamaApi('statoInvio', { pin: pinAttuale })
+      chiamaApi('statoInvio', { pin: pinAttuale, riferimento: riferimento })
         .then(function (risultato) {
           if (risultato.stato === 'ok') {
             document.getElementById('stato-invio-automatico').textContent = 'Inviato ✅';
           } else if (risultato.stato === 'errore') {
             document.getElementById('stato-invio-automatico').textContent = 'Errore ❌, controlla il gruppo o riprova.';
           } else {
-            pollingStatoInvio(tentativi + 1);
+            pollingStatoInvio(tentativi + 1, riferimento);
           }
         })
         .catch(function () {
-          pollingStatoInvio(tentativi + 1);
+          pollingStatoInvio(tentativi + 1, riferimento);
         });
     }, 3000);
   }
