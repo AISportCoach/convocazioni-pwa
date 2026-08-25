@@ -173,6 +173,21 @@
   }
   .card:active { border-color: var(--blu); }
 
+  .card-partita-azioni {
+    display: flex;
+    gap: 8px;
+    margin-top: 12px;
+  }
+  .card-partita-azioni button {
+    flex: 1;
+  }
+
+  .pulsante-elimina {
+    background: white;
+    color: var(--rosso);
+    border: 2px solid var(--rosso);
+  }
+
   .card-partita-titolo { font-weight: 700; font-size: 16px; margin-bottom: 4px; }
   .card-partita-dettagli { font-size: 14px; color: #666; }
   .badge {
@@ -448,9 +463,9 @@
     <div id="elenco-partite"><div class="caricamento">Caricamento...</div></div>
   </div>
 
-  <!-- SCHERMATA 2: NUOVA PARTITA -->
+  <!-- SCHERMATA 2: NUOVA PARTITA / MODIFICA PARTITA -->
   <div id="schermata-nuova-partita" class="schermata">
-    <h2>Nuova partita</h2>
+    <h2 id="np-titolo">Nuova partita</h2>
     <div class="messaggio-errore" id="errore-partita"></div>
 
     <div class="campo">
@@ -481,7 +496,7 @@
       <select id="np-categoria"></select>
     </div>
 
-    <button class="pulsante-primario" onclick="salvaNuovaPartita()">Crea partita e continua</button>
+    <button class="pulsante-primario" id="np-btn-salva" onclick="salvaNuovaPartita()">Crea partita e continua</button>
     <button class="pulsante-secondario" onclick="mostraHome()">Annulla</button>
   </div>
 
@@ -585,6 +600,7 @@
   let categorieDisponibili = []; // usato solo dall'amministratore per il menu a tendina
   let partiteCache = [];
   let partitaSelezionata = null;
+  let partitaInModifica = null; // partita in corso di modifica (oggetto partita), null se si sta creando una nuova partita
   let casaTrasfertaNuovaPartita = 'Casa'; // per il toggle casa/trasferta
   let giocatoriCorrenti = [];
   let limitiCorrenti = { sottoQuota: null, fuoriQuota: null }; // tetti numerici della categoria, null = nessun tetto esplicito
@@ -609,8 +625,37 @@
   }
 
   function mostraNuovaPartita() {
+    partitaInModifica = null;
+    document.getElementById('np-titolo').textContent = 'Nuova partita';
+    document.getElementById('np-btn-salva').textContent = 'Crea partita e continua';
+    document.getElementById('errore-partita').style.display = 'none';
+    document.getElementById('np-data').value = '';
+    document.getElementById('np-ora').value = '';
+    document.getElementById('np-avversario').value = '';
+    document.getElementById('np-ritrovo').value = '';
+    scegliCasaTrasferta('Casa');
+
+    popolaCampoCategoria('');
+    mostraSchermata('schermata-nuova-partita');
+  }
+
+  function apriModificaPartita(partita) {
+    partitaInModifica = partita;
+    document.getElementById('np-titolo').textContent = 'Modifica partita';
+    document.getElementById('np-btn-salva').textContent = 'Salva modifiche';
     document.getElementById('errore-partita').style.display = 'none';
 
+    document.getElementById('np-data').value = normalizzaDataPerInput(partita.data);
+    document.getElementById('np-ora').value = normalizzaOraPerInput(partita.ora);
+    document.getElementById('np-avversario').value = partita.avversario || '';
+    document.getElementById('np-ritrovo').value = partita.ritrovo || '';
+    scegliCasaTrasferta(partita.casaTrasferta === 'Trasferta' ? 'Trasferta' : 'Casa');
+
+    popolaCampoCategoria(partita.categoria);
+    mostraSchermata('schermata-nuova-partita');
+  }
+
+  function popolaCampoCategoria(categoriaSelezionata) {
     const campoCategoria = document.getElementById('np-campo-categoria');
     if (tipoAccesso === 'admin' || tipoAccesso === 'developer') {
       campoCategoria.style.display = 'block';
@@ -622,11 +667,35 @@
         opt.textContent = c;
         select.appendChild(opt);
       });
+      if (categoriaSelezionata) select.value = categoriaSelezionata;
     } else {
       campoCategoria.style.display = 'none';
     }
+  }
 
-    mostraSchermata('schermata-nuova-partita');
+  // Il backend potrebbe restituire la data/ora della partita in formati diversi
+  // (già in ISO, oppure in dd/mm/yyyy o come stringa ISO con orario, tipico export
+  // di un valore Data/Ora di un foglio Google Sheets): li normalizziamo al formato
+  // richiesto dagli input HTML date/time (yyyy-mm-dd e HH:MM).
+  function normalizzaDataPerInput(valore) {
+    if (!valore) return '';
+    if (/^\d{4}-\d{2}-\d{2}/.test(valore)) return valore.slice(0, 10);
+    const match = /^(\d{1,2})\/(\d{1,2})\/(\d{4})/.exec(valore);
+    if (match) {
+      const giorno = match[1].padStart(2, '0');
+      const mese = match[2].padStart(2, '0');
+      return match[3] + '-' + mese + '-' + giorno;
+    }
+    return valore;
+  }
+
+  function normalizzaOraPerInput(valore) {
+    if (!valore) return '';
+    const isoMatch = /T(\d{2}):(\d{2})/.exec(valore);
+    if (isoMatch) return isoMatch[1] + ':' + isoMatch[2];
+    const match = /^(\d{1,2}):(\d{2})/.exec(valore);
+    if (match) return match[1].padStart(2, '0') + ':' + match[2];
+    return valore;
   }
 
   // ============================================================
@@ -719,7 +788,23 @@
             '<div class="card-partita-titolo">' + (p.casaTrasferta === 'Casa' ? 'Casa' : 'Trasferta') + ' vs ' + escapeHtml(p.avversario) + '</div>' +
             '<div class="card-partita-dettagli">' + p.data + ' - ' + p.ora + '</div>' +
             '<div class="card-partita-dettagli">' + escapeHtml(p.ritrovo || 'ritrovo da definire') + '</div>' +
-            '<span class="badge">' + escapeHtml(p.categoria) + '</span>';
+            '<span class="badge">' + escapeHtml(p.categoria) + '</span>' +
+            '<div class="card-partita-azioni">' +
+            '<button type="button" class="pulsante-secondario pulsante-piccolo btn-modifica-partita">Modifica</button>' +
+            '<button type="button" class="pulsante-elimina pulsante-piccolo btn-elimina-partita">Elimina</button>' +
+            '</div>';
+
+          const btnModifica = div.querySelector('.btn-modifica-partita');
+          btnModifica.addEventListener('click', function (e) {
+            e.stopPropagation();
+            apriModificaPartita(p);
+          });
+          const btnElimina = div.querySelector('.btn-elimina-partita');
+          btnElimina.addEventListener('click', function (e) {
+            e.stopPropagation();
+            eliminaPartitaClient(p);
+          });
+
           contenitore.appendChild(div);
         });
       })
@@ -751,12 +836,29 @@
     }
     nascondiErrore('errore-partita');
 
-    chiamaApi('creaPartita', { pin: pinAttuale, datiPartita: dati })
+    const chiamata = partitaInModifica
+      ? chiamaApi('modificaPartita', { pin: pinAttuale, idPartita: partitaInModifica.id, datiPartita: dati })
+      : chiamaApi('creaPartita', { pin: pinAttuale, datiPartita: dati });
+
+    chiamata
       .then(function () {
         mostraHome();
       })
       .catch(function (err) {
         mostraErrore('errore-partita', 'Errore: ' + err.message);
+      });
+  }
+
+  function eliminaPartitaClient(partita) {
+    const descrizione = (partita.casaTrasferta === 'Casa' ? 'Casa' : 'Trasferta') + ' vs ' + partita.avversario + ' (' + partita.data + ')';
+    if (!window.confirm('Eliminare definitivamente la partita "' + descrizione + '"? L\'eventuale convocazione già salvata andrà persa.')) return;
+
+    chiamaApi('eliminaPartita', { pin: pinAttuale, idPartita: partita.id })
+      .then(function () {
+        caricaPartite();
+      })
+      .catch(function (err) {
+        window.alert('Errore: ' + err.message);
       });
   }
 
