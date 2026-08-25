@@ -92,6 +92,12 @@
     border: 2px solid var(--blu);
   }
 
+  .pulsante-pericolo {
+    background: white;
+    color: #c0392b;
+    border: 2px solid #c0392b;
+  }
+
   .pulsante-copia {
     background: var(--blu-scuro);
     color: white;
@@ -170,10 +176,20 @@
     margin-bottom: 12px;
     border: 2px solid transparent;
     cursor: pointer;
+    position: relative;
   }
   .card:active { border-color: var(--blu); }
 
-  .card-partita-titolo { font-weight: 700; font-size: 16px; margin-bottom: 4px; }
+  .icona-modifica-partita {
+    position: absolute;
+    top: 12px;
+    right: 12px;
+    font-size: 18px;
+    text-decoration: none;
+    padding: 4px;
+  }
+
+  .card-partita-titolo { font-weight: 700; font-size: 16px; margin-bottom: 4px; padding-right: 28px; }
   .card-partita-dettagli { font-size: 14px; color: #666; }
   .badge {
     display: inline-block;
@@ -448,9 +464,9 @@
     <div id="elenco-partite"><div class="caricamento">Caricamento...</div></div>
   </div>
 
-  <!-- SCHERMATA 2: NUOVA PARTITA -->
+  <!-- SCHERMATA 2: NUOVA/MODIFICA PARTITA -->
   <div id="schermata-nuova-partita" class="schermata">
-    <h2>Nuova partita</h2>
+    <h2 id="np-titolo">Nuova partita</h2>
     <div class="messaggio-errore" id="errore-partita"></div>
 
     <div class="campo">
@@ -481,8 +497,9 @@
       <select id="np-categoria"></select>
     </div>
 
-    <button class="pulsante-primario" onclick="salvaNuovaPartita()">Crea partita e continua</button>
+    <button class="pulsante-primario" id="np-pulsante-salva" onclick="salvaNuovaPartita()">Crea partita e continua</button>
     <button class="pulsante-secondario" onclick="mostraHome()">Annulla</button>
+    <button class="pulsante-pericolo" id="np-pulsante-elimina" style="display:none;" onclick="eliminaPartitaInModifica()">Elimina partita</button>
   </div>
 
   <!-- SCHERMATA 3: CONVOCAZIONE -->
@@ -585,6 +602,7 @@
   let categorieDisponibili = []; // usato solo dall'amministratore per il menu a tendina
   let partiteCache = [];
   let partitaSelezionata = null;
+  let idPartitaInModifica = null; // null = si sta creando una partita nuova
   let casaTrasfertaNuovaPartita = 'Casa'; // per il toggle casa/trasferta
   let giocatoriCorrenti = [];
   let limitiCorrenti = { sottoQuota: null, fuoriQuota: null }; // tetti numerici della categoria, null = nessun tetto esplicito
@@ -609,8 +627,44 @@
   }
 
   function mostraNuovaPartita() {
+    idPartitaInModifica = null;
     document.getElementById('errore-partita').style.display = 'none';
+    document.getElementById('np-titolo').textContent = 'Nuova partita';
+    document.getElementById('np-pulsante-salva').textContent = 'Crea partita e continua';
+    document.getElementById('np-pulsante-elimina').style.display = 'none';
 
+    document.getElementById('np-data').value = '';
+    document.getElementById('np-ora').value = '';
+    document.getElementById('np-avversario').value = '';
+    document.getElementById('np-ritrovo').value = '';
+    scegliCasaTrasferta('Casa');
+
+    popolaSelectCategoria(categoriaAttuale);
+    mostraSchermata('schermata-nuova-partita');
+  }
+
+  /** Apre la stessa schermata "Nuova partita" precompilata, per modificare una partita esistente. */
+  function apriModificaPartita(p, event) {
+    event.stopPropagation(); // non deve anche aprire la convocazione (click sulla card)
+
+    idPartitaInModifica = p.id;
+    document.getElementById('errore-partita').style.display = 'none';
+    document.getElementById('np-titolo').textContent = 'Modifica partita';
+    document.getElementById('np-pulsante-salva').textContent = 'Salva modifiche';
+    document.getElementById('np-pulsante-elimina').style.display = 'block';
+
+    const [giorno, mese, anno] = p.data.split('/');
+    document.getElementById('np-data').value = anno + '-' + mese + '-' + giorno;
+    document.getElementById('np-ora').value = p.ora;
+    document.getElementById('np-avversario').value = p.avversario;
+    document.getElementById('np-ritrovo').value = p.ritrovo || '';
+    scegliCasaTrasferta(p.casaTrasferta === 'Casa' ? 'Casa' : 'Trasferta');
+
+    popolaSelectCategoria(p.categoria);
+    mostraSchermata('schermata-nuova-partita');
+  }
+
+  function popolaSelectCategoria(categoriaSelezionata) {
     const campoCategoria = document.getElementById('np-campo-categoria');
     if (tipoAccesso === 'admin' || tipoAccesso === 'developer') {
       campoCategoria.style.display = 'block';
@@ -622,11 +676,10 @@
         opt.textContent = c;
         select.appendChild(opt);
       });
+      select.value = categoriaSelezionata;
     } else {
       campoCategoria.style.display = 'none';
     }
-
-    mostraSchermata('schermata-nuova-partita');
   }
 
   // ============================================================
@@ -716,10 +769,12 @@
           div.className = 'card';
           div.onclick = function () { apriConvocazione(p); };
           div.innerHTML =
+            '<a href="#" class="icona-modifica-partita" title="Modifica partita">✏️</a>' +
             '<div class="card-partita-titolo">' + (p.casaTrasferta === 'Casa' ? 'Casa' : 'Trasferta') + ' vs ' + escapeHtml(p.avversario) + '</div>' +
             '<div class="card-partita-dettagli">' + p.data + ' - ' + p.ora + '</div>' +
             '<div class="card-partita-dettagli">' + escapeHtml(p.ritrovo || 'ritrovo da definire') + '</div>' +
             '<span class="badge">' + escapeHtml(p.categoria) + '</span>';
+          div.querySelector('.icona-modifica-partita').onclick = function (event) { apriModificaPartita(p, event); };
           contenitore.appendChild(div);
         });
       })
@@ -751,7 +806,24 @@
     }
     nascondiErrore('errore-partita');
 
-    chiamaApi('creaPartita', { pin: pinAttuale, datiPartita: dati })
+    const chiamata = idPartitaInModifica
+      ? chiamaApi('modificaPartita', { pin: pinAttuale, idPartita: idPartitaInModifica, datiPartita: dati })
+      : chiamaApi('creaPartita', { pin: pinAttuale, datiPartita: dati });
+
+    chiamata
+      .then(function () {
+        mostraHome();
+      })
+      .catch(function (err) {
+        mostraErrore('errore-partita', 'Errore: ' + err.message);
+      });
+  }
+
+  function eliminaPartitaInModifica() {
+    if (!idPartitaInModifica) return;
+    if (!window.confirm('Eliminare questa partita? Se ha già una convocazione salvata, verrà eliminata anche quella. L\'azione non si può annullare.')) return;
+
+    chiamaApi('eliminaPartita', { pin: pinAttuale, idPartita: idPartitaInModifica })
       .then(function () {
         mostraHome();
       })
