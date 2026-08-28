@@ -458,6 +458,7 @@
     <h1>Convocazioni</h1>
     <p class="sottotitolo" id="home-sottotitolo"></p>
     <a class="link-testo" href="#" id="link-impostazioni" style="display:none;" onclick="apriImpostazioni(); return false;">⚙️ Impostazioni</a>
+    <a class="link-testo" href="#" id="link-cambia-pin" style="display:none;" onclick="mostraCambiaPin(); return false;">🔑 Cambia PIN</a>
     <a class="link-testo" href="#" onclick="esci(); return false;">Esci</a>
     <button class="pulsante-primario" onclick="mostraNuovaPartita()">+ Nuova partita</button>
     <h2 style="margin-top:20px;">Partite</h2>
@@ -589,6 +590,24 @@
     <button class="pulsante-secondario" onclick="aggiornaElencoGruppiClient()">Aggiorna elenco gruppi</button>
     <div id="elenco-impostazioni-categorie"><div class="caricamento">Caricamento...</div></div>
     <button class="pulsante-secondario" onclick="mostraHome()">Torna all'elenco partite</button>
+  </div>
+
+  <!-- SCHERMATA 6: CAMBIA PIN -->
+  <div id="schermata-cambia-pin" class="schermata">
+    <h2>Cambia PIN</h2>
+    <p class="sottotitolo" id="cp-sottotitolo"></p>
+    <div class="messaggio-errore" id="errore-cambia-pin"></div>
+    <div class="messaggio-ok" id="ok-cambia-pin">PIN aggiornato. Usa il nuovo PIN al prossimo accesso.</div>
+    <div class="campo">
+      <label for="cp-nuovo">Nuovo PIN (4-8 cifre)</label>
+      <input type="tel" id="cp-nuovo" inputmode="numeric" autocomplete="off" placeholder="Nuovo PIN">
+    </div>
+    <div class="campo">
+      <label for="cp-conferma">Conferma nuovo PIN</label>
+      <input type="tel" id="cp-conferma" inputmode="numeric" autocomplete="off" placeholder="Ripeti il nuovo PIN">
+    </div>
+    <button class="pulsante-primario" id="cp-pulsante-salva" onclick="salvaNuovoPin()">Salva nuovo PIN</button>
+    <button class="pulsante-secondario" onclick="mostraHome()">Annulla</button>
   </div>
 
 </div>
@@ -725,6 +744,8 @@
             tipoAccesso === 'developer' ? 'Developer - tutte le categorie' :
             tipoAccesso === 'admin' ? 'Amministratore - tutte le categorie' : categoriaAttuale;
           document.getElementById('link-impostazioni').style.display = tipoAccesso === 'developer' ? 'block' : 'none';
+          // Il PIN Developer si cambia dalle Script Properties, non dall'app.
+          document.getElementById('link-cambia-pin').style.display = tipoAccesso === 'developer' ? 'none' : 'block';
           mostraHome();
           return true;
         }
@@ -748,6 +769,58 @@
   document.getElementById('input-pin').addEventListener('keydown', function (e) {
     if (e.key === 'Enter') provaPin();
   });
+
+  // ============================================================
+  // CAMBIO PIN (l'utente cambia il PIN con cui ha fatto l'accesso)
+  // ============================================================
+  function mostraCambiaPin() {
+    document.getElementById('cp-nuovo').value = '';
+    document.getElementById('cp-conferma').value = '';
+    nascondiErrore('errore-cambia-pin');
+    document.getElementById('ok-cambia-pin').style.display = 'none';
+    document.getElementById('cp-sottotitolo').textContent =
+      tipoAccesso === 'admin' ? 'PIN Amministratore' : categoriaAttuale;
+    mostraSchermata('schermata-cambia-pin');
+  }
+
+  function salvaNuovoPin() {
+    const nuovo = document.getElementById('cp-nuovo').value.trim();
+    const conferma = document.getElementById('cp-conferma').value.trim();
+    nascondiErrore('errore-cambia-pin');
+    document.getElementById('ok-cambia-pin').style.display = 'none';
+
+    if (!/^\d{4,8}$/.test(nuovo)) {
+      mostraErrore('errore-cambia-pin', 'Il nuovo PIN deve avere da 4 a 8 cifre.');
+      return;
+    }
+    if (nuovo !== conferma) {
+      mostraErrore('errore-cambia-pin', 'I due PIN non coincidono.');
+      return;
+    }
+    if (nuovo === pinAttuale) {
+      mostraErrore('errore-cambia-pin', 'Il nuovo PIN è uguale a quello attuale.');
+      return;
+    }
+
+    const pulsante = document.getElementById('cp-pulsante-salva');
+    pulsante.disabled = true;
+    pulsante.textContent = 'Salvataggio...';
+    chiamaApi('cambiaPin', { pin: pinAttuale, nuovoPin: nuovo })
+      .then(function () {
+        pinAttuale = nuovo;
+        localStorage.setItem(CHIAVE_PIN_SALVATO, nuovo);
+        document.getElementById('cp-nuovo').value = '';
+        document.getElementById('cp-conferma').value = '';
+        document.getElementById('ok-cambia-pin').style.display = 'block';
+      })
+      .catch(function (err) {
+        mostraErrore('errore-cambia-pin', err.message);
+      })
+      .then(function () {
+        pulsante.disabled = false;
+        pulsante.textContent = 'Salva nuovo PIN';
+      });
+  }
 
   // ============================================================
   // PARTITE
