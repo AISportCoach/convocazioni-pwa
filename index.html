@@ -968,7 +968,10 @@
     giocatori.forEach(function (g, indice) {
       const nomeCompleto = g.nome + ' ' + g.cognome;
       const giaConvocato = Object.prototype.hasOwnProperty.call(numeriEsistenti, nomeCompleto);
-      const numeroDefault = giaConvocato ? numeriEsistenti[nomeCompleto] : (g.ultimoNumero || '');
+      // Un giocatore non convocato non deve mostrare un numero: lo riceve solo quando
+      // viene spuntato (vedi il listener del checkbox più sotto, che propone lì
+      // l'ultimo numero usato).
+      const numeroDefault = giaConvocato ? numeriEsistenti[nomeCompleto] : '';
 
       const riga = document.createElement('div');
       riga.className = 'giocatore-riga' + (giaConvocato ? ' selezionato' : '');
@@ -1008,8 +1011,14 @@
         '</div>';
 
       const checkbox = riga.querySelector('input[type="checkbox"]');
+      const campoNumeroRiga = riga.querySelector('.giocatore-numero');
       checkbox.addEventListener('change', function () {
         riga.classList.toggle('selezionato', checkbox.checked);
+        if (checkbox.checked) {
+          if (!campoNumeroRiga.value.trim()) campoNumeroRiga.value = g.ultimoNumero || '';
+        } else {
+          campoNumeroRiga.value = '';
+        }
         aggiornaContatore();
         evidenziaNumeriDoppi();
       });
