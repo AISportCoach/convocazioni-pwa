@@ -462,6 +462,7 @@
     <a class="link-testo" href="#" onclick="esci(); return false;">Esci</a>
     <button class="pulsante-primario" onclick="mostraNuovaPartita()">+ Nuova partita</button>
     <h2 style="margin-top:20px;">Partite</h2>
+    <a class="link-testo" href="#" id="link-toggle-partite" style="display:none;" onclick="toggleMostraPartite(); return false;">Mostra tutte</a>
     <div id="elenco-partite"><div class="caricamento">Caricamento...</div></div>
   </div>
 
@@ -492,6 +493,10 @@
     <div class="campo">
       <label for="np-ritrovo">Ritrovo (luogo e orario)</label>
       <input type="text" id="np-ritrovo" placeholder="Es. Campo comunale, ore 14:15">
+    </div>
+    <div class="campo">
+      <label for="np-posizione-gps">Posizione GPS (facoltativa)</label>
+      <input type="text" id="np-posizione-gps" placeholder="Link Google Maps, coordinate o indirizzo">
     </div>
     <div class="campo" id="np-campo-categoria" style="display:none;">
       <label for="np-categoria">Categoria</label>
@@ -620,6 +625,7 @@
   let categoriaAttuale = ''; // nome categoria per un mister, vuoto per l'amministratore
   let categorieDisponibili = []; // usato solo dall'amministratore per il menu a tendina
   let partiteCache = [];
+  let mostraTuttePartite = false; // toggle riservato ad admin/developer
   let partitaSelezionata = null;
   let idPartitaInModifica = null; // null = si sta creando una partita nuova
   let casaTrasfertaNuovaPartita = 'Casa'; // per il toggle casa/trasferta
@@ -656,6 +662,7 @@
     document.getElementById('np-ora').value = '';
     document.getElementById('np-avversario').value = '';
     document.getElementById('np-ritrovo').value = '';
+    document.getElementById('np-posizione-gps').value = '';
     scegliCasaTrasferta('Casa');
 
     popolaSelectCategoria(categoriaAttuale);
@@ -677,6 +684,7 @@
     document.getElementById('np-ora').value = p.ora;
     document.getElementById('np-avversario').value = p.avversario;
     document.getElementById('np-ritrovo').value = p.ritrovo || '';
+    document.getElementById('np-posizione-gps').value = p.posizioneGps || '';
     scegliCasaTrasferta(p.casaTrasferta === 'Casa' ? 'Casa' : 'Trasferta');
 
     popolaSelectCategoria(p.categoria);
@@ -746,6 +754,8 @@
           document.getElementById('link-impostazioni').style.display = tipoAccesso === 'developer' ? 'block' : 'none';
           // Il PIN Developer si cambia dalle Script Properties, non dall'app.
           document.getElementById('link-cambia-pin').style.display = tipoAccesso === 'developer' ? 'none' : 'block';
+          document.getElementById('link-toggle-partite').style.display =
+            (tipoAccesso === 'admin' || tipoAccesso === 'developer') ? 'block' : 'none';
           mostraHome();
           return true;
         }
@@ -762,6 +772,7 @@
   function esci() {
     localStorage.removeItem(CHIAVE_PIN_SALVATO);
     pinAttuale = '';
+    mostraTuttePartite = false;
     document.getElementById('input-pin').value = '';
     mostraSchermata('schermata-pin');
   }
@@ -825,11 +836,18 @@
   // ============================================================
   // PARTITE
   // ============================================================
+  function toggleMostraPartite() {
+    mostraTuttePartite = !mostraTuttePartite;
+    document.getElementById('link-toggle-partite').textContent =
+      mostraTuttePartite ? 'Mostra solo le prossime' : 'Mostra tutte';
+    caricaPartite();
+  }
+
   function caricaPartite() {
     const contenitore = document.getElementById('elenco-partite');
     contenitore.innerHTML = '<div class="caricamento">Caricamento...</div>';
 
-    chiamaApi('getPartite', { pin: pinAttuale })
+    chiamaApi('getPartite', { pin: pinAttuale, mostraTutte: mostraTuttePartite })
       .then(function (partite) {
         partiteCache = partite;
         if (partite.length === 0) {
@@ -869,6 +887,7 @@
       avversario: document.getElementById('np-avversario').value.trim(),
       casaTrasferta: casaTrasfertaNuovaPartita,
       ritrovo: document.getElementById('np-ritrovo').value.trim(),
+      posizioneGps: document.getElementById('np-posizione-gps').value.trim(),
       categoria: (tipoAccesso === 'admin' || tipoAccesso === 'developer') ? document.getElementById('np-categoria').value : categoriaAttuale
     };
 
