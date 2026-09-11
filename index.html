@@ -715,15 +715,30 @@
   const URL_EXEC = 'https://script.google.com/macros/s/AKfycbx7BV7S0YCsqGw753fAnrUcSZS7BzGW5CikQVUEU7KmyuQFbGIoaq4Xa68saXLB6GRQuQ/exec';
   const CHIAVE_PIN_SALVATO = 'convocazioni_pin';
 
-  function chiamaApi(azione, parametri) {
+  function chiamaApi(azione, parametri, tentativo) {
+    tentativo = tentativo || 1;
     const corpo = Object.assign({ azione: azione }, parametri || {});
     return fetch(URL_EXEC, {
       method: 'POST',
       headers: { 'Content-Type': 'text/plain;charset=utf-8' },
       body: JSON.stringify(corpo)
     })
-      .then(function (risposta) { return risposta.json(); })
-      .then(function (risultato) {
+      .then(function (risposta) { return risposta.text(); })
+      .then(function (testo) {
+        let risultato;
+        try {
+          risultato = JSON.parse(testo);
+        } catch (e) {
+          // Apps Script a volte risponde con una pagina HTML invece del JSON atteso
+          // (avvio a freddo del container o un hiccup momentaneo lato Google): quasi
+          // sempre basta riprovare subito, come faceva a mano l'utente vedendo
+          // "Unexpected token '<'". Fino a 3 tentativi con piccola attesa crescente.
+          if (tentativo < 3) {
+            return new Promise(function (resolve) { setTimeout(resolve, 600 * tentativo); })
+              .then(function () { return chiamaApi(azione, parametri, tentativo + 1); });
+          }
+          throw new Error('La app di Google non ha risposto correttamente. Riprova tra qualche secondo.');
+        }
         if (!risultato.ok) throw new Error(risultato.errore || 'Errore sconosciuto');
         return risultato.dati;
       });
