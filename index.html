@@ -942,14 +942,7 @@
       .then(function (risultato) {
         giocatoriCorrenti = risultato.giocatori;
         limitiCorrenti = risultato.limiti || { sottoQuota: null, fuoriQuota: null };
-        return chiamaApi('getConvocazioneEsistente', { pin: pinAttuale, idPartita: partita.id })
-          .then(function (convocazioneEsistente) {
-            const convocatiEsistenti = convocazioneEsistente ? convocazioneEsistente.convocati : [];
-            disegnaElencoGiocatori(giocatoriCorrenti, convocatiEsistenti);
-          })
-          .catch(function () {
-            disegnaElencoGiocatori(giocatoriCorrenti, []);
-          });
+        disegnaElencoGiocatori(giocatoriCorrenti, risultato.convocatiEsistenti || []);
       })
       .catch(function (err) {
         document.getElementById('elenco-giocatori').innerHTML =
