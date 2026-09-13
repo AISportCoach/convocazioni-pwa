@@ -990,15 +990,23 @@
       if (viceCapitanoDiSquadra) viceCapitanoSelezionato = viceCapitanoDiSquadra.nome + ' ' + viceCapitanoDiSquadra.cognome;
     }
 
+    // Se questa partita non ha ancora una convocazione salvata, propone come punto di
+    // partenza chi aveva un numero nell'ultima convocazione in cui compariva: il mister
+    // toglie la spunta a chi non c'è questa volta invece di ripartire da una lista vuota.
+    const nessunaConvocazioneSalvata = !convocatiEsistenti || convocatiEsistenti.length === 0;
+
     contenitore.innerHTML = '';
     filaRuoli = [];
     giocatori.forEach(function (g, indice) {
       const nomeCompleto = g.nome + ' ' + g.cognome;
-      const giaConvocato = Object.prototype.hasOwnProperty.call(numeriEsistenti, nomeCompleto);
+      const haNumeroSalvato = Object.prototype.hasOwnProperty.call(numeriEsistenti, nomeCompleto);
+      const proponiDaStorico = nessunaConvocazioneSalvata && !!g.ultimoNumero;
+      const giaConvocato = haNumeroSalvato || proponiDaStorico;
       // Un giocatore non convocato non deve mostrare un numero: lo riceve solo quando
       // viene spuntato (vedi il listener del checkbox più sotto, che propone lì
-      // l'ultimo numero usato).
-      const numeroDefault = giaConvocato ? numeriEsistenti[nomeCompleto] : '';
+      // l'ultimo numero usato) — a meno che non venga già proposto spuntato in partenza
+      // perché aveva un numero nell'ultima convocazione (vedi sopra).
+      const numeroDefault = haNumeroSalvato ? numeriEsistenti[nomeCompleto] : (proponiDaStorico ? g.ultimoNumero : '');
 
       const riga = document.createElement('div');
       riga.className = 'giocatore-riga' + (giaConvocato ? ' selezionato' : '');
